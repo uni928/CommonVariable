@@ -1,0 +1,148 @@
+//共通の変数を安全に作成するためのサンプル。
+//継承するクラスを指定するタイプの仕様書に強い。
+//共通の変数を public static にするとバグの原因になりかねないため
+//継承したクラスでのみ使用可能にすることで
+//仕様書の段階で共通の変数を使用するクラスを限定できる。
+
+namespace CompanyName.CommonData
+{
+    /// <summary>
+    /// プレイヤーの共通変数。
+    /// IPlayerData を継承したクラスでのみ使用可能。
+    /// 継承するクラスを指定するタイプの仕様書に強い仕組みとしてこの方法を採用。
+    /// こちらは data が private なパターンで肥大化してしまうがより安全な方法。
+    /// </summary>
+    public interface IPlayerData
+    {
+        private static readonly PlayerData data = new(); //static フィールドを極力減らすためこの記述を行う。 private はより強力に制限をかける記述。
+
+        public class PlayerData
+        {
+            public int hp { get; set; } = 32;
+            public int maxHP { get; set; } = 32;
+        }
+
+        // data が private なので、アクセス可能にするためにプロパティを実装する
+        protected static int HP
+        {
+            get
+            {
+                return data.hp;
+            }
+            set
+            {
+                if (data.maxHP < value)
+                {
+                    data.hp = data.maxHP;
+                }
+                else if (value < 0)
+                {
+                    data.hp = 0;
+                }
+                else
+                {
+                    data.hp = value;
+                }
+                //ShowLogIPlayerData(); //デバック用
+            }
+        }
+
+        protected static int MaxHP
+        {
+            get
+            {
+                return data.maxHP;
+            }
+            set
+            {
+                if (0 < value)
+                {
+                    data.maxHP = value;
+                    if (data.maxHP < data.hp)
+                    {
+                        data.hp = data.maxHP;
+                    }
+                }
+            }
+        }
+
+        //便利なメソッドも公開範囲を指定して作成できる。
+        protected static void CauseDamage(int damage)
+        {
+            HP -= damage;
+        }
+
+        //継承せずとも使用したいプロパティやメソッドは public static を指定する。(非推奨)
+        public static void ShowLog()
+        {
+            try
+            {
+                throw new System.Exception();
+            }
+            catch (System.Exception e)
+            {
+                UnityEngine.Debug.Log($"HP : {data.hp}, MaxHP : {data.maxHP}, Hierarchy is \n{e.StackTrace}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 共通変数。
+    /// ICommonData を継承したクラスでのみ使用可能。
+    /// 継承するクラスを指定するタイプの仕様書に強い仕組みとしてこの方法を採用。
+    /// こちらは data が protected なパターンで肥大化しないため使いやすい。
+    /// </summary>
+    public interface ICommonData
+    {
+        protected static readonly CommonData data = new(); //ここは protected も指定可能。こちらの方が肥大化しない。
+
+        public class CommonData
+        {
+            //経過ターン数
+            public int NowTurnCount { get; set; } = 0;
+
+            //特定の処理を実行しないためのフラグ1
+            public bool IsNotExecuteSpecificProcess1 { get; set; } = false;
+
+            //特定の処理を実行しないためのフラグ2
+            public bool IsNotExecuteSpecificProcess2 { get; set; } = false;
+
+            //特定の処理を実行しないためのフラグ3
+            public bool IsNotExecuteSpecificProcess3 { get; set; } = false;
+        }
+
+        //継承せずとも使用したいプロパティやメソッドは public static を指定する。(非推奨)
+        public static int GetTurnCount()
+        {
+            return data.NowTurnCount;
+        }
+    }
+}
+
+namespace CompanyName
+{
+    class ClassA : CommonData.IPlayerData, CommonData.ICommonData
+    {
+        static void ClassAFunction()
+        {
+            CommonData.IPlayerData.HP = 100; //OK
+            CommonData.IPlayerData.CauseDamage(5); //OK
+            CommonData.IPlayerData.ShowLog(); //OK
+
+            CommonData.ICommonData.data.NowTurnCount = 3; //OK
+            CommonData.ICommonData.GetTurnCount(); //OK
+        }
+    }
+
+    class ClassB
+    {
+        static void ClassBFunction()
+        {
+            //CommonData.IPlayerData.HP = 100; //コンパイルエラー
+            CommonData.IPlayerData.ShowLog(); //OK
+
+            //CommonData.ICommonData.data.NowTurnCount = 3; //コンパイルエラー
+            CommonData.ICommonData.GetTurnCount(); //OK
+        }
+    }
+}
